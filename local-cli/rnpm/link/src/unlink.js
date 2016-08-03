@@ -60,7 +60,7 @@ const unlinkDependencyIOS = (iOSProject, dependency, packageName, iOSDependencie
  * If optional argument [packageName] is provided, it's the only one
  * that's checked
  */
-module.exports = function unlink(args, config) {
+module.exports = function unlink(args, config, options) {
   const packageName = args[0];
 
   var project;
@@ -86,12 +86,21 @@ module.exports = function unlink(args, config) {
     return Promise.reject(err);
   }
 
-  const allDependencies = getDependencyConfig(config, getProjectDependencies());
-  const otherDependencies = filter(allDependencies, d => d.name !== packageName);
-  const iOSDependencies = compact(otherDependencies.map(d => d.config.ios));
+  const platforms = {
+    ios: options.platform !== 'android',
+    android: options.platform !== 'ios',
+  }
 
-  unlinkDependencyAndroid(project.android, dependency, packageName);
-  unlinkDependencyIOS(project.ios, dependency, packageName, iOSDependencies);
+  const allDependencies = getDependencyConfig(config, getProjectDependencies());
+
+  if (platforms.android)
+    unlinkDependencyAndroid(project.android, dependency, packageName);
+  
+  if (platforms.ios) {
+    const otherDependencies = filter(allDependencies, d => d.name !== packageName);
+    const iOSDependencies = compact(otherDependencies.map(d => d.config.ios));
+    unlinkDependencyIOS(project.ios, dependency, packageName, iOSDependencies);
+  }
 
   const assets = difference(
     dependency.assets,
@@ -102,12 +111,12 @@ module.exports = function unlink(args, config) {
     return Promise.resolve();
   }
 
-  if (project.ios) {
+  if (project.ios && platforms.ios) {
     log.info('Unlinking assets from ios project');
     unlinkAssetsIOS(assets, project.ios);
   }
 
-  if (project.android) {
+  if (project.android && platforms.android) {
     log.info('Unlinking assets from android project');
     unlinkAssetsAndroid(assets, project.android.assetsPath);
   }

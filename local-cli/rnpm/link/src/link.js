@@ -70,17 +70,17 @@ const linkDependencyIOS = (iOSProject, dependency) => {
   log.info(`iOS module ${dependency.name} has been successfully linked`);
 };
 
-const linkAssets = (project, assets) => {
+const linkAssets = (project, assets, platforms) => {
   if (isEmpty(assets)) {
     return;
   }
 
-  if (project.ios) {
+  if (project.ios && platforms.ios) {
     log.info('Linking assets to ios project');
     copyAssetsIOS(assets, project.ios);
   }
 
-  if (project.android) {
+  if (project.android && platforms.android) {
     log.info('Linking assets to android project');
     copyAssetsAndroid(assets, project.android.assetsPath);
   }
@@ -93,7 +93,7 @@ const linkAssets = (project, assets) => {
  *
  * If optional argument [packageName] is provided, it's the only one that's checked
  */
-module.exports = function link(args, config) {
+module.exports = function link(args, config, options) {
   var project;
   try {
     project = config.getProjectConfig();
@@ -106,6 +106,10 @@ module.exports = function link(args, config) {
   }
 
   const packageName = args[0];
+  const platforms = {
+    ios: options.platform !== 'android',
+    android: options.platform !== 'ios',
+  }
 
   const dependencies = getDependencyConfig(
     config,
@@ -119,12 +123,12 @@ module.exports = function link(args, config) {
 
   const tasks = flatten(dependencies.map(dependency => [
     () => promisify(dependency.config.commands.prelink || commandStub),
-    () => linkDependencyAndroid(project.android, dependency),
-    () => linkDependencyIOS(project.ios, dependency),
+    () => platforms.android && linkDependencyAndroid(project.android, dependency),
+    () => platforms.ios && linkDependencyIOS(project.ios, dependency),
     () => promisify(dependency.config.commands.postlink || commandStub),
   ]));
 
-  tasks.push(() => linkAssets(project, assets));
+  tasks.push(() => linkAssets(project, assets, platforms));
 
   return promiseWaterfall(tasks).catch(err => {
     log.error(
